@@ -3,6 +3,7 @@ const path = require("path");
 const fs = require("fs");
 
 const uploadDir = path.join(process.cwd(), "uploads");
+console.log("[Multer] Upload directory set to:", uploadDir);
 
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
@@ -25,10 +26,20 @@ const fileFilter = (req, file, cb) => {
   else cb(new Error("File type not allowed"));
 };
 
-const upload = multer({
+const multerUpload = multer({
   storage,
   fileFilter,
   limits: { fileSize: 5 * 1024 * 1024 },
 });
 
-module.exports = upload.single("documents");
+const upload = (req, res, next) => {
+  multerUpload.single("documents")(req, res, (err) => {
+    if (err) return next(err);
+    if (req.file) {
+      req.file.path = `uploads/${req.file.filename}`;
+    }
+    next();
+  });
+};
+
+module.exports = upload;
