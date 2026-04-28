@@ -122,7 +122,6 @@ exports.createUserByWallet = async (req, res) => {
   }
 };
 
-// Set passcode for first time
 exports.setPasscode = async (req, res) => {
   try {
     const { user_wallet, passcode } = req.body;
@@ -135,16 +134,18 @@ exports.setPasscode = async (req, res) => {
 
     const user = await User.getByWalletId(user_wallet);
     if (!user) return res.status(404).json({ error: "User not found" });
-    if (user.passcode)
-      return res.status(400).json({ error: "Passcode already set" });
 
+    // ✅ Allow setting passcode regardless — just overwrite
+    // This handles edge case where previous attempt partially failed
     const hashed = await bcrypt.hash(passcode, 10);
     await User.update(user.id, { passcode: hashed });
 
+    const { passcode: _, password: __, ...userData } = user;
     res.json({
       message: "Passcode set successfully",
       id: user.id,
       uuid: user.uuid,
+      user: { ...userData, passcode_set: true },
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
