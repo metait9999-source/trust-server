@@ -23,12 +23,10 @@ exports.createPackage = async (req, res) => {
       max_amount,
     } = req.body;
     if (!name || !duration_days || !daily_rate_min || !daily_rate_max) {
-      return res
-        .status(400)
-        .json({
-          error:
-            "name, duration_days, daily_rate_min, daily_rate_max are required",
-        });
+      return res.status(400).json({
+        error:
+          "name, duration_days, daily_rate_min, daily_rate_max are required",
+      });
     }
     const id = await packageModel.create({
       name,
