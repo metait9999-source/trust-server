@@ -27,20 +27,18 @@ exports.getUserById = async (req, res) => {
 };
 
 exports.getUserByWalletId = async (req, res) => {
-  exports.getByWallet = async (req, res) => {
-    try {
-      const user = await User.getByWalletId(req.params.wallet);
-      if (!user) return res.status(404).json({ error: "User not found" });
+  try {
+    const user = await User.getByWalletId(req.params.wallet);
+    if (!user) return res.status(404).json({ error: "User not found" });
 
-      const { passcode, password, ...rest } = user;
-      res.json({
-        ...rest,
-        passcode_set: !!passcode,
-      });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  };
+    const { passcode, password, ...rest } = user;
+    res.json({
+      ...rest,
+      passcode_set: !!passcode,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 };
 
 // Sign up a new user
