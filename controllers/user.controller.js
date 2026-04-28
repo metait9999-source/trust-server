@@ -31,10 +31,14 @@ exports.getUserByWalletId = async (req, res) => {
     const user = await User.getByWalletId(req.params.wallet);
     if (!user) return res.status(404).json({ error: "User not found" });
 
+    // ✅ Check passcode BEFORE destructuring
+    const hasPasscode = !!user.passcode;
+
     const { passcode, password, ...rest } = user;
+
     res.json({
       ...rest,
-      passcode_set: !!passcode,
+      passcode_set: hasPasscode, // ✅ now correctly true/false
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
