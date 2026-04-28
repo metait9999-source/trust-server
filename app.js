@@ -20,6 +20,7 @@ const conversationRoutes = require("./routes/conversation.routes");
 const permissionsRoutes = require("./routes/permissions.routes");
 const arbitrageRoutes = require("./routes/arbitrage.routes");
 const miningRoutes = require("./routes/mining.routes");
+const loanRoutes = require("./routes/loan.routes");
 const { app, server } = require("./socket/socket");
 require("./cron/arbitragePayout.cron");
 require("./cron/miningPayout.cron");
@@ -50,6 +51,7 @@ app.use("/api/v1/messages", messageRoutes);
 app.use("/api/v1/conversation", conversationRoutes);
 app.use("/api/v1/arbitrage", arbitrageRoutes);
 app.use("/api/v1/mining", miningRoutes);
+app.use("/api/v1/loans", loanRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
