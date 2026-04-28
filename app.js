@@ -19,8 +19,10 @@ const messageRoutes = require("./routes/message.routes");
 const conversationRoutes = require("./routes/conversation.routes");
 const permissionsRoutes = require("./routes/permissions.routes");
 const arbitrageRoutes = require("./routes/arbitrage.routes");
+const miningRoutes = require("./routes/mining.routes");
 const { app, server } = require("./socket/socket");
 require("./cron/arbitragePayout.cron");
+require("./cron/miningPayout.cron");
 
 const PORT = process.env.PORT || 5000;
 
@@ -47,6 +49,7 @@ app.use("/api/v1/reset", resetRoutes);
 app.use("/api/v1/messages", messageRoutes);
 app.use("/api/v1/conversation", conversationRoutes);
 app.use("/api/v1/arbitrage", arbitrageRoutes);
+app.use("/api/v1/mining", miningRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
