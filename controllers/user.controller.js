@@ -28,13 +28,16 @@ exports.getUserById = async (req, res) => {
 
 exports.getUserByWalletId = async (req, res) => {
   try {
-    const user = await User.getByWalletId(req.params.walletID);
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
-    res.json(user);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+    const user = await User.getByWalletId(req.params.wallet);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    const { passcode, password, ...rest } = user;
+    res.json({
+      ...rest,
+      passcode_set: !!passcode,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 };
 
@@ -84,29 +87,89 @@ exports.createUserByWallet = async (req, res) => {
   try {
     const { user_wallet, ...rest } = req.body;
 
-    // Check if the wallet ID already exists
     const existingUser = await User.getByWalletId(user_wallet);
     if (existingUser) {
-      return res
-        .status(400)
-        .json({ error: "User already exists with this wallet ID" });
+      // User exists — return status so frontend knows
+      return res.status(200).json({
+        exists: true,
+        has_passcode: !!existingUser.passcode,
+        id: existingUser.id,
+        uuid: existingUser.uuid,
+        status: existingUser.status,
+      });
     }
 
-    // Generate a unique 6-digit UUID
+    // Generate unique 6-digit UUID
     let uuid;
     let isUnique = false;
-
     while (!isUnique) {
       uuid = Math.floor(100000 + Math.random() * 900000).toString();
       const userWithUuid = await User.getByUUId(uuid);
-      if (!userWithUuid) {
-        isUnique = true;
-      }
+      if (!userWithUuid) isUnique = true;
     }
 
-    // Create the new user
+    // Create user without passcode yet
     const newUserId = await User.create({ uuid, user_wallet, ...rest });
-    res.status(201).json({ id: newUserId, uuid, user_wallet, ...rest });
+    res.status(201).json({
+      exists: false,
+      has_passcode: false,
+      id: newUserId,
+      uuid,
+      user_wallet,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Set passcode for first time
+exports.setPasscode = async (req, res) => {
+  try {
+    const { user_wallet, passcode } = req.body;
+
+    if (!passcode || passcode.length !== 6 || !/^\d{6}$/.test(passcode)) {
+      return res
+        .status(400)
+        .json({ error: "Passcode must be exactly 6 digits" });
+    }
+
+    const user = await User.getByWalletId(user_wallet);
+    if (!user) return res.status(404).json({ error: "User not found" });
+    if (user.passcode)
+      return res.status(400).json({ error: "Passcode already set" });
+
+    const hashed = await bcrypt.hash(passcode, 10);
+    await User.update(user.id, { passcode: hashed });
+
+    res.json({
+      message: "Passcode set successfully",
+      id: user.id,
+      uuid: user.uuid,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Verify passcode
+exports.verifyPasscode = async (req, res) => {
+  try {
+    const { user_wallet, passcode } = req.body;
+
+    if (!passcode)
+      return res.status(400).json({ error: "Passcode is required" });
+
+    const user = await User.getByWalletId(user_wallet);
+    if (!user) return res.status(404).json({ error: "User not found" });
+    if (!user.passcode)
+      return res.status(400).json({ error: "No passcode set" });
+
+    const match = await bcrypt.compare(passcode, user.passcode);
+    if (!match) return res.status(401).json({ error: "Incorrect passcode" });
+
+    // Return full user data on success
+    const { passcode: _, password: __, ...userData } = user;
+    res.json({ verified: true, user: userData });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
