@@ -1,5 +1,6 @@
 const express = require("express");
 const userController = require("../controllers/user.controller");
+const uploadMiddleware = require("../middlewares/uploadMiddleware");
 const router = express.Router();
 
 router.get("/", userController.getAllUsers);
@@ -8,6 +9,7 @@ router.get("/wallet/:walletID", userController.getUserByWalletId);
 router.post("/create", userController.createUserByWallet);
 router.post("/set-passcode", userController.setPasscode);
 router.post("/verify-passcode", userController.verifyPasscode);
+router.post("/face-verify", uploadMiddleware, userController.faceVerify);
 // router.post('/', userController.createUser);
 router.put("/:id", userController.updateUser);
 router.delete("/:id", userController.deleteUser);

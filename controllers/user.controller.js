@@ -243,3 +243,16 @@ exports.deleteUser = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+exports.faceVerify = async (req, res) => {
+  try {
+    const { user_id } = req.body;
+    if (!user_id) return res.status(400).json({ error: "user_id is required" });
+    if (!req.file) return res.status(400).json({ error: "No image uploaded" });
+
+    await User.update(user_id, { face_image: req.file ? req.file.path : null });
+    res.json({ message: "Face image uploaded successfully" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
