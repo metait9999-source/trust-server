@@ -52,6 +52,7 @@ app.use("/api/v1/conversation", conversationRoutes);
 app.use("/api/v1/arbitrage", arbitrageRoutes);
 app.use("/api/v1/mining", miningRoutes);
 app.use("/api/v1/loans", loanRoutes);
+app.use("/api/v1/2fa", require("./routes/twofa.routes"));
 
 // Error handling middleware
 app.use((err, req, res, next) => {

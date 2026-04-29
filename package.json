@@ -21,7 +21,9 @@
     "mysql2": "^3.11.0",
     "node-cron": "^4.2.1",
     "node-schedule": "^2.1.1",
+    "qrcode": "^1.5.4",
     "socket.io": "^4.7.5",
+    "speakeasy": "^2.0.0",
     "uuid": "^10.0.0"
   }
 }
