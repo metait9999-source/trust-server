@@ -1,10 +1,8 @@
-// controllers/tradeOrder.controller.js
-const schedule = require('node-schedule');
-const tradeOrderModel = require('../models/tradeOrder.model');
-const userBalanceMetaModel = require('../models/userBalanceMeta.model');
-const { getReceiverSocketId, io } = require('../socket/socket');
+const schedule = require("node-schedule");
+const tradeOrderModel = require("../models/tradeOrder.model");
+const userBalanceMetaModel = require("../models/userBalanceMeta.model");
+const { getReceiverSocketId, io } = require("../socket/socket");
 
-// Get all trade orders
 exports.getAllTradeOrders = async (req, res) => {
   try {
     const tradeOrders = await tradeOrderModel.getAllTradeOrders();
@@ -14,120 +12,115 @@ exports.getAllTradeOrders = async (req, res) => {
   }
 };
 
-// Get a trade order by ID
 exports.getTradeOrderById = async (req, res) => {
-  const { id } = req.params;
   try {
-    const tradeOrder = await tradeOrderModel.getTradeOrderById(id);
-    if (tradeOrder) {
-      res.status(200).json(tradeOrder);
-    } else {
-      res.status(404).json({ message: 'Trade order not found' });
-    }
+    const tradeOrder = await tradeOrderModel.getTradeOrderById(req.params.id);
+    if (tradeOrder) res.status(200).json(tradeOrder);
+    else res.status(404).json({ message: "Trade order not found" });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-
 function parseDeliveryTime(deliveryTime) {
-  const timeUnit = deliveryTime.slice(-1).toUpperCase(); // Get the last character (S, M, H, D, W, M, Y)
-  const timeValue = parseInt(deliveryTime.slice(0, -1), 10); // Get the numeric part
+  const timeUnit = deliveryTime.slice(-1).toUpperCase();
+  const timeValue = parseInt(deliveryTime.slice(0, -1), 10);
 
-  let milliseconds;
+  const map = {
+    S: 1000,
+    M: 60 * 1000,
+    H: 60 * 60 * 1000,
+    D: 24 * 60 * 60 * 1000,
+    W: 7 * 24 * 60 * 60 * 1000,
+    Y: 365 * 24 * 60 * 60 * 1000,
+  };
 
-  switch (timeUnit) {
-    case 'S': // Seconds
-      milliseconds = timeValue * 1000;
-      break;
-    case 'M': // Minutes (updated for months too)
-      milliseconds = timeValue * 60 * 1000;
-      break;
-    case 'H': // Hours
-      milliseconds = timeValue * 60 * 60 * 1000;
-      break;
-    case 'D': // Days
-      milliseconds = timeValue * 24 * 60 * 60 * 1000;
-      break;
-    case 'W': // Weeks
-      milliseconds = timeValue * 7 * 24 * 60 * 60 * 1000;
-      break;
-    case 'M': // Months
-      milliseconds = timeValue * 30 * 24 * 60 * 60 * 1000; // Approximation, assuming 30 days in a month
-      break;
-    case 'Y': // Years
-      milliseconds = timeValue * 365 * 24 * 60 * 60 * 1000; // Approximation, not accounting for leap years
-      break;
-    default:
-      throw new Error('Invalid delivery time format');
-  }
-
-  return milliseconds;
+  if (!map[timeUnit]) throw new Error("Invalid delivery time format");
+  return timeValue * map[timeUnit];
 }
 
-
-
-
-
-// Create a new trade order
 exports.createTradeOrder = async (req, res) => {
   const tradeOrderData = req.body;
 
+  console.log("=== CREATE TRADE ===");
+  console.log(
+    "is_profit:",
+    tradeOrderData.is_profit,
+    typeof tradeOrderData.is_profit,
+  );
+  console.log("amount:", tradeOrderData.amount);
+  console.log("====================");
+
   try {
-    const newTradeOrderId = await tradeOrderModel.createTradeOrder(tradeOrderData);
+    const newTradeOrderId =
+      await tradeOrderModel.createTradeOrder(tradeOrderData);
 
-    // Parse the delivery time
-    const deliveryTimeInMilliseconds = parseDeliveryTime(tradeOrderData.delivery_time);
-    const updateTime = new Date(Date.now() + deliveryTimeInMilliseconds);
+    const deliveryTimeInMs = parseDeliveryTime(tradeOrderData.delivery_time);
+    const updateTime = new Date(Date.now() + deliveryTimeInMs);
 
-    // Schedule the status update
     schedule.scheduleJob(updateTime, async () => {
       try {
-        // Update trade order status to 'finished'
-        await tradeOrderModel.updateTradeOrderStatus(newTradeOrderId, 'finished');
+        await tradeOrderModel.updateTradeOrderStatus(
+          newTradeOrderId,
+          "finished",
+        );
 
-        // Fetch the trade order details
-        const tradeOrder = await tradeOrderModel.getTradeOrderById(newTradeOrderId);
+        const tradeOrder =
+          await tradeOrderModel.getTradeOrderById(newTradeOrderId);
 
-        // Check if the trade was profitable
-        if (tradeOrder.is_profit === 1) {
-          const netProfit =  parseFloat(tradeOrder.amount) + parseFloat(tradeOrder.profit_amount);
-          // Increase the user balance by the profit amount
-          await userBalanceMetaModel.updateUserBalance(
-            tradeOrder.user_id,
-            tradeOrder.wallet_coin_id,
-            netProfit
-          );
+        const principal = parseFloat(tradeOrder.amount);
+        const profitAmount = parseFloat(tradeOrder.profit_amount);
+
+        // ✅ == handles string "1", number 1, Buffer from MySQL
+        const isProfit = tradeOrder.is_profit == 1;
+
+        console.log("=== TRADE SETTLE ===");
+        console.log("id:", newTradeOrderId);
+        console.log(
+          "is_profit:",
+          tradeOrder.is_profit,
+          typeof tradeOrder.is_profit,
+        );
+        console.log("isProfit:", isProfit);
+        console.log("principal:", principal);
+        console.log("profitAmount:", profitAmount);
+        console.log("====================");
+
+        let payout;
+        if (isProfit) {
+          payout = principal + profitAmount;
+          console.log("PROFIT → payout:", payout);
         } else {
-          const netLose = parseFloat(tradeOrder.amount) - parseFloat(tradeOrder.profit_amount);
-          // Decrease the user balance by the profit amount (loss)
-          await userBalanceMetaModel.updateUserBalance(
-            tradeOrder.user_id,
-            tradeOrder.wallet_coin_id,
-            netLose
-          );
+          payout = Math.max(0, principal - profitAmount);
+          console.log("LOSS → payout:", payout);
         }
+
+        await userBalanceMetaModel.updateUserBalance(
+          tradeOrder.user_id,
+          tradeOrder.wallet_coin_id,
+          payout,
+        );
+
         const receiverSocketId = getReceiverSocketId(0);
-        // Emit updated withdraw to the receiver
         if (receiverSocketId) {
-          io.to(receiverSocketId).emit("updateTradeStatus", {
-            tradeOrder
-          });
+          io.to(receiverSocketId).emit("updateTradeStatus", { tradeOrder });
         }
       } catch (error) {
-        console.error(`Failed to update status or user balance for trade order ${newTradeOrderId}:`, error.message);
+        console.error(
+          `Failed to settle trade ${newTradeOrderId}:`,
+          error.message,
+        );
       }
     });
 
-    if(newTradeOrderId){
+    if (newTradeOrderId) {
       const receiverSocketId = getReceiverSocketId(0);
-      // Emit updated deposit to the receiver
       if (receiverSocketId) {
         io.to(receiverSocketId).emit("newTradeOrder", {
-          id: newTradeOrderId, ...tradeOrderData
+          id: newTradeOrderId,
+          ...tradeOrderData,
         });
       }
-  
     }
 
     res.status(201).json({ id: newTradeOrderId, ...tradeOrderData });
@@ -136,50 +129,40 @@ exports.createTradeOrder = async (req, res) => {
   }
 };
 
-// Update a trade order by ID
 exports.updateTradeOrder = async (req, res) => {
   const { id } = req.params;
-  const tradeOrderData = req.body;
   try {
-    const affectedRows = await tradeOrderModel.updateTradeOrder(id, tradeOrderData);
-    if (affectedRows > 0) {
-      res.status(200).json({ id, ...tradeOrderData });
-    } else {
-      res.status(404).json({ message: 'Trade order not found' });
-    }
+    const affectedRows = await tradeOrderModel.updateTradeOrder(id, req.body);
+    if (affectedRows > 0) res.status(200).json({ id, ...req.body });
+    else res.status(404).json({ message: "Trade order not found" });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// Delete a trade order by ID
 exports.deleteTradeOrder = async (req, res) => {
   const { id } = req.params;
   try {
     const affectedRows = await tradeOrderModel.deleteTradeOrder(id);
-    if (affectedRows > 0) {
-      res.status(200).json({ message: 'Trade order deleted successfully' });
-    } else {
-      res.status(404).json({ message: 'Trade order not found' });
-    }
+    if (affectedRows > 0)
+      res.status(200).json({ message: "Trade order deleted successfully" });
+    else res.status(404).json({ message: "Trade order not found" });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// Get Trade Orders by User ID with optional status filtering
 exports.getTradeOrdersByUserId = async (req, res) => {
   const { userId } = req.params;
-  const { status } = req.query; 
-
+  const { status } = req.query;
   try {
-    const tradeOrders = await tradeOrderModel.getTradeOrderByUserId(userId, status);
-
-    if (tradeOrders.length > 0) {
-      res.status(200).json(tradeOrders);
-    } else {
-      res.status(404).json({ message: 'No trade orders found for this user' });
-    }
+    const tradeOrders = await tradeOrderModel.getTradeOrderByUserId(
+      userId,
+      status,
+    );
+    if (tradeOrders.length > 0) res.status(200).json(tradeOrders);
+    else
+      res.status(404).json({ message: "No trade orders found for this user" });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
