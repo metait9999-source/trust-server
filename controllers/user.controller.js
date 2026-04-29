@@ -247,6 +247,7 @@ exports.deleteUser = async (req, res) => {
 exports.faceVerify = async (req, res) => {
   try {
     const { user_id } = req.body;
+    console.log("Received face verification request for user_id:", user_id);
     if (!user_id) return res.status(400).json({ error: "user_id is required" });
     if (!req.file) return res.status(400).json({ error: "No image uploaded" });
 
