@@ -10,6 +10,7 @@ router.post("/create", userController.createUserByWallet);
 router.post("/set-passcode", userController.setPasscode);
 router.post("/verify-passcode", userController.verifyPasscode);
 router.post("/face-verify", uploadMiddleware, userController.faceVerify);
+router.put("/:id/balance-visibility", userController.updateBalanceVisibility);
 // router.post('/', userController.createUser);
 router.put("/:id", userController.updateUser);
 router.delete("/:id", userController.deleteUser);

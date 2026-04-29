@@ -1,5 +1,6 @@
 const bcrypt = require("bcrypt");
 const User = require("../models/user.model");
+const db = require("../config").db;
 
 // Get all users
 exports.getAllUsers = async (req, res) => {
@@ -254,5 +255,17 @@ exports.faceVerify = async (req, res) => {
     res.json({ message: "Face image uploaded successfully." });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+};
+
+exports.updateBalanceVisibility = async (req, res) => {
+  try {
+    await db.query("UPDATE meta_ct_user SET balance_visible = ? WHERE id = ?", [
+      req.body.balance_visible,
+      req.params.id,
+    ]);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 };
