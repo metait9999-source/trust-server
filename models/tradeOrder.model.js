@@ -3,14 +3,15 @@ const db = require("../config/db.config");
 async function getAllTradeOrders() {
   try {
     const [rows] = await db.query(`
-      SELECT t.*, 
-             u.uuid AS user_uuid, 
-             u.employee AS asigned_employee, 
-             w.coin_name AS wallet_coin_name
-      FROM meta_ct_trade_order AS t
-      JOIN meta_ct_user AS u ON t.user_id = u.id
-      JOIN meta_ct_wallets AS w ON t.wallet_coin_id = w.coin_id
-    `);
+  SELECT t.*, 
+         u.uuid AS user_uuid, 
+         u.employee AS asigned_employee, 
+         w.coin_name AS wallet_coin_name
+  FROM meta_ct_trade_order AS t
+  JOIN meta_ct_user AS u ON t.user_id = u.id
+  JOIN meta_ct_wallets AS w ON t.wallet_coin_id = w.coin_id
+  ORDER BY t.created_at DESC
+`);
     return rows;
   } catch (error) {
     throw new Error(error.message);
