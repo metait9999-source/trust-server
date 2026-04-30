@@ -7,7 +7,7 @@ const { getReceiverSocketId, io } = require("../socket/socket");
 
 // Send a new message
 exports.sendMessage = async (req, res) => {
-  const { userId, recipientId, messageText, senderType } = req.body;
+  const { userId, recipientId, messageText, senderType, faq_id } = req.body; // ✅ faq_id added
   const messageImage = req.file ? req.file.path : null;
 
   try {
@@ -69,7 +69,7 @@ exports.sendMessage = async (req, res) => {
       sender_type: senderType || "user",
     });
 
-    // Emit the new message to the client
+    // Emit the new message to the recipient
     const receiverSocketId = getReceiverSocketId(recipientId);
     if (receiverSocketId) {
       io.to(receiverSocketId).emit("newMessage", newMessage);
@@ -90,7 +90,6 @@ exports.sendMessage = async (req, res) => {
     );
 
     if (previousMessages.length === 1 && senderType === "user") {
-      // Get root FAQs
       const rootFaqs = await ChatFaq.getRootFaqs();
 
       let replyText =
@@ -100,27 +99,77 @@ exports.sendMessage = async (req, res) => {
           "\n\nMeanwhile, you can select a topic below for instant help:";
       }
 
-      const defaultReply = {
+      const defaultReplyMessage = await Message.createMessage({
         conversation_id: newMessage.conversation_id,
         sender_id: null,
+        anonymous_sender_id: null,
         message_text: replyText,
         message_image: null,
         seen: 0,
         sender_type: "admin",
         faq_options: rootFaqs.length > 0 ? JSON.stringify(rootFaqs) : null,
+      });
+
+      const parsedDefaultReply = {
+        ...defaultReplyMessage,
+        faq_options: rootFaqs.length > 0 ? rootFaqs : null,
       };
 
-      const defaultReplyMessage = await Message.createMessage(defaultReply);
-
-      // Emit to user — send faq_options as parsed array not string
+      // Emit to user
       const userSocketId = getReceiverSocketId(
         newMessage.sender_id || recipientId,
       );
       if (userSocketId) {
-        io.to(userSocketId).emit("newMessage", {
-          ...defaultReplyMessage,
-          faq_options: rootFaqs,
+        io.to(userSocketId).emit("newMessage", parsedDefaultReply);
+      }
+
+      // Emit to admin
+      const adminSocketId = getReceiverSocketId(0);
+      if (adminSocketId) {
+        io.to(adminSocketId).emit("newMessage", parsedDefaultReply);
+      }
+    }
+
+    // ── Auto-reply when user selects any FAQ ──────────────────
+    if (senderType === "user" && faq_id) {
+      const faq = await ChatFaq.getFaqWithChildren(faq_id);
+
+      if (faq) {
+        let replyText = faq.answer || "Here's some information on that topic.";
+        if (faq.children && faq.children.length > 0) {
+          replyText += "\n\nYou can also explore a sub-topic below:";
+        }
+
+        const faqReplyMessage = await Message.createMessage({
+          conversation_id: newMessage.conversation_id,
+          sender_id: null,
+          anonymous_sender_id: null,
+          message_text: replyText,
+          message_image: null,
+          seen: 0,
+          sender_type: "admin",
+          faq_options:
+            faq.children && faq.children.length > 0
+              ? JSON.stringify(faq.children)
+              : null,
         });
+
+        const parsedFaqReply = {
+          ...faqReplyMessage,
+          faq_options: faq.children?.length > 0 ? faq.children : null,
+        };
+
+        // Emit to user
+        const userSocketId = getReceiverSocketId(newMessage.sender_id);
+        if (userSocketId) {
+          io.to(userSocketId).emit("newMessage", parsedFaqReply);
+        }
+
+        // Emit to admin
+        const adminSocketId = getReceiverSocketId(0);
+        if (adminSocketId) {
+          io.to(adminSocketId).emit("newMessage", parsedFaqReply);
+        }
       }
     }
 
@@ -153,7 +202,7 @@ exports.getMessages = async (req, res) => {
       });
     }
 
-    // ✅ Parse faq_options JSON string back to array for each message
+    // Parse faq_options JSON string back to array for each message
     const parsedMessages = messages.map((msg) => ({
       ...msg,
       faq_options: msg.faq_options
