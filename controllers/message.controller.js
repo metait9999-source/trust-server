@@ -19,6 +19,48 @@ exports.sendMessage = async (req, res) => {
       anonymousSenderId = uuidv4();
     }
 
+    if (senderType === "user" && faq_id) {
+      const faq = await ChatFaq.getFaqWithChildren(faq_id);
+
+      if (faq) {
+        let replyText = faq.answer || "Here's some information on that topic.";
+        if (faq.children && faq.children.length > 0) {
+          replyText += "\n\nYou can also explore a sub-topic below:";
+        }
+
+        const faqReplyMessage = await Message.createMessage({
+          conversation_id: newMessage.conversation_id,
+          sender_id: null,
+          anonymous_sender_id: null,
+          message_text: replyText,
+          message_image: null,
+          seen: 0,
+          sender_type: "admin",
+          faq_options:
+            faq.children && faq.children.length > 0
+              ? JSON.stringify(faq.children)
+              : null,
+        });
+
+        const parsedFaqReply = {
+          ...faqReplyMessage,
+          faq_options: faq.children?.length > 0 ? faq.children : null,
+        };
+
+        // ✅ Emit to USER
+        const userSocketId = getReceiverSocketId(newMessage.sender_id);
+        if (userSocketId) {
+          io.to(userSocketId).emit("newMessage", parsedFaqReply);
+        }
+
+        // ✅ Emit to ADMIN so it appears in their conversation panel too
+        const adminSocketId = getReceiverSocketId(0); // 0 = admin
+        if (adminSocketId) {
+          io.to(adminSocketId).emit("newMessage", parsedFaqReply);
+        }
+      }
+    }
+
     // Determine if a conversation already exists
     if (senderType === "user" || senderType === "admin") {
       if (senderType === "user") {
