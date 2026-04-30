@@ -1,48 +1,60 @@
-// message.controller.js file 
-const Message = require('../models/message.model');
-const Conversation = require('../models/conversation.model');
-const { v4: uuidv4 } = require('uuid');
-const { getReceiverSocketId, io } = require('../socket/socket');
+// message.controller.js file
+const Message = require("../models/message.model");
+const Conversation = require("../models/conversation.model");
+const ChatFaq = require("../models/chatFaq.model");
+const { v4: uuidv4 } = require("uuid");
+const { getReceiverSocketId, io } = require("../socket/socket");
 
 // Send a new message
 exports.sendMessage = async (req, res) => {
-  const { userId, recipientId, messageText, senderType } = req.body; // senderType can be 'user' or 'admin'
+  const { userId, recipientId, messageText, senderType } = req.body;
   const messageImage = req.file ? req.file.path : null;
+
   try {
     let anonymousSenderId = null;
     let conversation_id = null;
 
     // Check if the sender is anonymous
-    if (!userId && senderType !== 'admin') {
-      anonymousSenderId = uuidv4(); // Generate a unique anonymousSenderId
+    if (!userId && senderType !== "admin") {
+      anonymousSenderId = uuidv4();
     }
 
     // Determine if a conversation already exists
-    if (senderType === 'user' || senderType === 'admin') {
-      if (senderType === 'user') {
-        // User is sending message, find conversation between user and admin (admin's id assumed to be 0)
-        conversation_id = await Conversation.findConversationByUserIds(userId, 0);
+    if (senderType === "user" || senderType === "admin") {
+      if (senderType === "user") {
+        conversation_id = await Conversation.findConversationByUserIds(
+          userId,
+          0,
+        );
       } else {
-        // Admin is sending message, find conversation between recipient (user) and admin (id = 0)
-        conversation_id = await Conversation.findConversationByUserIds(recipientId, 0);
+        conversation_id = await Conversation.findConversationByUserIds(
+          recipientId,
+          0,
+        );
       }
     } else {
-      // Find conversation for an anonymous user
-      conversation_id = await Conversation.findConversationForAnonymous(anonymousSenderId, 0);
+      conversation_id = await Conversation.findConversationForAnonymous(
+        anonymousSenderId,
+        0,
+      );
     }
 
     // If no conversation exists, create a new one
     if (!conversation_id) {
-      if (senderType === 'user' || senderType === 'admin') {
-        // Create a conversation between the user/admin and recipient
-        if (senderType === 'user') {
+      if (senderType === "user" || senderType === "admin") {
+        if (senderType === "user") {
           conversation_id = await Conversation.createConversation(userId, 0);
         } else {
-          conversation_id = await Conversation.createConversation(recipientId, 0);
+          conversation_id = await Conversation.createConversation(
+            recipientId,
+            0,
+          );
         }
       } else {
-        // Create a conversation involving an anonymous user
-        conversation_id = await Conversation.createConversationForAnonymous(anonymousSenderId, 0);
+        conversation_id = await Conversation.createConversationForAnonymous(
+          anonymousSenderId,
+          0,
+        );
       }
     }
 
@@ -54,46 +66,61 @@ exports.sendMessage = async (req, res) => {
       message_text: messageText,
       message_image: messageImage,
       seen: 0,
-      sender_type: senderType || 'user',
+      sender_type: senderType || "user",
     });
 
-    // Emit the new message to the client (either admin or user depending on recipient)
+    // Emit the new message to the client
     const receiverSocketId = getReceiverSocketId(recipientId);
     if (receiverSocketId) {
       io.to(receiverSocketId).emit("newMessage", newMessage);
     }
 
-    // After saving, get unread messages for that conversation
-    const unreadCount = await Message.getUnreadMessagesCount(newMessage.conversation_id);
-    const unreadConversationsCount = await Message.getUnreadConversationsCount();
-
-    // Emit unread message count to the receiver
+    // Emit unread message count
+    const unreadConversationsCount =
+      await Message.getUnreadConversationsCount();
     if (receiverSocketId) {
       io.to(receiverSocketId).emit("getUnreadMessage", {
         unreadConversationsCount,
       });
     }
 
-    // Check if this is the first message in the conversation and send a default reply
-    const previousMessages = await Message.getMessagesByConversationId(newMessage.conversation_id);
-    if (previousMessages.length === 1 && senderType === 'user') {
-      // This is the first message from the user, send a default reply
+    // ── Auto-reply on first message from user ─────────────────
+    const previousMessages = await Message.getMessagesByConversationId(
+      newMessage.conversation_id,
+    );
+
+    if (previousMessages.length === 1 && senderType === "user") {
+      // Get root FAQs
+      const rootFaqs = await ChatFaq.getRootFaqs();
+
+      let replyText =
+        "Thank you for reaching out! 👋 Our team will contact you soon.";
+      if (rootFaqs.length > 0) {
+        replyText +=
+          "\n\nMeanwhile, you can select a topic below for instant help:";
+      }
+
       const defaultReply = {
         conversation_id: newMessage.conversation_id,
-        sender_id: 0, // Admin or system ID
-        recipient_id: newMessage.sender_id || recipientId, // Reply to the user who sent the first message
-        message_text: "Thank you for reaching out to us. Our team will respond shortly.",
+        sender_id: null,
+        message_text: replyText,
+        message_image: null,
         seen: 0,
-        sender_type: 'admin',
+        sender_type: "admin",
+        faq_options: rootFaqs.length > 0 ? JSON.stringify(rootFaqs) : null,
       };
 
-      // Save the default reply to the database
       const defaultReplyMessage = await Message.createMessage(defaultReply);
 
-      // Emit the default reply to the user
-      const userSocketId = getReceiverSocketId(newMessage.sender_id || recipientId);
+      // Emit to user — send faq_options as parsed array not string
+      const userSocketId = getReceiverSocketId(
+        newMessage.sender_id || recipientId,
+      );
       if (userSocketId) {
-        io.to(userSocketId).emit("newMessage", defaultReplyMessage);
+        io.to(userSocketId).emit("newMessage", {
+          ...defaultReplyMessage,
+          faq_options: rootFaqs,
+        });
       }
     }
 
@@ -108,21 +135,35 @@ exports.getMessages = async (req, res) => {
   const { conversation_id, user_id } = req.params;
 
   try {
-    const messages = await Message.getMessagesByConversationId(conversation_id, user_id);
+    const messages = await Message.getMessagesByConversationId(
+      conversation_id,
+      user_id,
+    );
 
     // Mark messages as seen
     await Message.markMessagesAsSeen(conversation_id, user_id);
-    const receiverSocketId = getReceiverSocketId(0);
-    const unreadConversationsCount = await Message.getUnreadConversationsCount();
 
-    // Emit unread message count to the receiver
+    const receiverSocketId = getReceiverSocketId(0);
+    const unreadConversationsCount =
+      await Message.getUnreadConversationsCount();
+
     if (receiverSocketId) {
       io.to(receiverSocketId).emit("getUnreadMessage", {
         unreadConversationsCount,
       });
     }
 
-    res.status(200).json(messages);
+    // ✅ Parse faq_options JSON string back to array for each message
+    const parsedMessages = messages.map((msg) => ({
+      ...msg,
+      faq_options: msg.faq_options
+        ? typeof msg.faq_options === "string"
+          ? JSON.parse(msg.faq_options)
+          : msg.faq_options
+        : null,
+    }));
+
+    res.status(200).json(parsedMessages);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -132,13 +173,12 @@ exports.getMessages = async (req, res) => {
 exports.getAllConversations = async (req, res) => {
   try {
     const conversations = await Conversation.getAll();
-    
-    // Add the last message to each conversation
     for (let conversation of conversations) {
-      const lastMessage = await Message.getLastMessageByConversationId(conversation.id);
+      const lastMessage = await Message.getLastMessageByConversationId(
+        conversation.id,
+      );
       conversation.last_message = lastMessage;
     }
-
     res.status(200).json(conversations);
   } catch (error) {
     res.status(500).json({ error: error.message });
