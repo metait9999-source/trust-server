@@ -1,5 +1,5 @@
 const router = require("express").Router();
-const ctrl = require("../controllers/chatFaq.contorller");
+const ctrl = require("../controllers/chatFaq.controller");
 
 // User routes
 router.get("/root", ctrl.getRootFaqs);
