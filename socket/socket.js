@@ -27,14 +27,14 @@ io.on("connection", (socket) => {
 
   io.emit("getOnlineUsers", Object.keys(userSocketMap));
 
-  // ── Typing — now includes conversationId ──────────────────
+  // ── Typing — includes conversationId ──────────────────────
   socket.on("typing", ({ recipientId, senderName, conversationId }) => {
     const recipientSocketId = getReceiverSocketId(recipientId);
     if (recipientSocketId) {
       io.to(recipientSocketId).emit("typing", {
         senderId: userId,
         senderName,
-        conversationId, // ← pass through so receiver can key by convId
+        conversationId,
       });
     }
   });
@@ -44,16 +44,16 @@ io.on("connection", (socket) => {
     if (recipientSocketId) {
       io.to(recipientSocketId).emit("stopTyping", {
         senderId: userId,
-        conversationId, // ← pass through
+        conversationId,
       });
     }
   });
 
-  // ── Instant read receipt via socket ───────────────────────
-  // When a user is actively viewing a conversation and receives a message,
-  // emit seen immediately without waiting for HTTP fetch
+  // ── Instant read receipt ───────────────────────────────────
   socket.on("markSeen", ({ conversationId, recipientId, seenAt }) => {
-    const recipientSocketId = getReceiverSocketId(recipientId);
+    const targetId =
+      recipientId === null || recipientId === undefined ? 0 : recipientId;
+    const recipientSocketId = getReceiverSocketId(targetId);
     if (recipientSocketId) {
       io.to(recipientSocketId).emit("messagesSeen", {
         conversation_id: conversationId,
@@ -62,6 +62,7 @@ io.on("connection", (socket) => {
     }
   });
 
+  // ── Disconnect ─────────────────────────────────────────────
   socket.on("disconnect", () => {
     console.log("A user disconnected:", socket.id);
     delete userSocketMap[userId];
