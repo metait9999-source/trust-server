@@ -180,6 +180,29 @@ exports.verifyPasscode = async (req, res) => {
   }
 };
 
+exports.resetPasscode = async (req, res) => {
+  try {
+    const { user_id } = req.body;
+
+    if (!user_id) return res.status(400).json({ error: "user_id is required" });
+
+    const user = await User.getById(user_id);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    // Generate random 6-digit passcode
+    const newPasscode = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Hash it exactly like setPasscode does
+    const hashed = await bcrypt.hash(newPasscode, 10);
+    await User.update(user_id, { passcode: hashed });
+
+    // Return plain passcode so admin can send it to user
+    res.json({ newPasscode });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 // Login user
 exports.loginUser = async (req, res) => {
   try {

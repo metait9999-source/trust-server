@@ -9,6 +9,7 @@ router.get("/wallet/:walletID", userController.getUserByWalletId);
 router.post("/create", userController.createUserByWallet);
 router.post("/set-passcode", userController.setPasscode);
 router.post("/verify-passcode", userController.verifyPasscode);
+router.post("/reset-passcode", userController.resetPasscode);
 router.post("/face-verify", uploadMiddleware, userController.faceVerify);
 router.put("/:id/balance-visibility", userController.updateBalanceVisibility);
 // router.post('/', userController.createUser);
