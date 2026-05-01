@@ -1,17 +1,13 @@
-// message.mode.js file
 const db = require("../config/db.config");
 
 class Message {
-  // Create a new message
   static async createMessage(messageData) {
     const insertQuery = `
-    INSERT INTO messages 
-      (conversation_id, sender_id, anonymous_sender_id, message_text, message_image, seen, sender_type, faq_options)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `;
-
+      INSERT INTO messages 
+        (conversation_id, sender_id, anonymous_sender_id, message_text, message_image, seen, sender_type, faq_options)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `;
     const selectQuery = `SELECT * FROM messages WHERE id = ?`;
-
     try {
       const [insertResult] = await db.query(insertQuery, [
         messageData.conversation_id,
@@ -21,18 +17,15 @@ class Message {
         messageData.message_image || null,
         messageData.seen || 0,
         messageData.sender_type || "user",
-        messageData.faq_options || null, // ✅ new field
+        messageData.faq_options || null,
       ]);
-
       const [rows] = await db.query(selectQuery, [insertResult.insertId]);
       return rows[0];
     } catch (error) {
-      console.log(error);
       throw new Error(error.message);
     }
   }
 
-  // Get all messages for a conversation with seen status
   static async getMessagesByConversationId(conversation_id, user_id) {
     const query = `
       SELECT m.*, 
@@ -41,7 +34,6 @@ class Message {
       WHERE m.conversation_id = ?
       ORDER BY m.created_at ASC
     `;
-
     try {
       const [rows] = await db.query(query, [user_id, conversation_id]);
       return rows;
@@ -50,14 +42,13 @@ class Message {
     }
   }
 
-  // Mark all messages as seen in a conversation
+  // ── Updated: stores seen_at timestamp ─────────────────────
   static async markMessagesAsSeen(conversation_id, user_id) {
     const query = `
       UPDATE messages 
-      SET seen = 1 
-      WHERE conversation_id = ? AND sender_id != ?
+      SET seen = 1, seen_at = NOW()
+      WHERE conversation_id = ? AND sender_id != ? AND seen = 0
     `;
-
     try {
       await db.query(query, [conversation_id, user_id]);
     } catch (error) {
@@ -65,16 +56,30 @@ class Message {
     }
   }
 
-  // Get the last message of a conversation
+  // ── Returns messages that were just marked seen (for emit) ─
+  static async getJustSeenMessages(conversation_id, user_id) {
+    const query = `
+      SELECT id, seen_at 
+      FROM messages 
+      WHERE conversation_id = ? AND sender_id = ? AND seen = 1 AND seen_at IS NOT NULL
+      ORDER BY seen_at DESC
+      LIMIT 1
+    `;
+    try {
+      const [rows] = await db.query(query, [conversation_id, user_id]);
+      return rows[0] || null;
+    } catch (error) {
+      throw new Error(error.message);
+    }
+  }
+
   static async getLastMessageByConversationId(conversation_id) {
     const query = `
-      SELECT * 
-      FROM messages 
+      SELECT * FROM messages 
       WHERE conversation_id = ?
       ORDER BY created_at DESC
       LIMIT 1
     `;
-
     try {
       const [rows] = await db.query(query, [conversation_id]);
       return rows[0];
@@ -83,14 +88,12 @@ class Message {
     }
   }
 
-  //get the count of unread messages by user and conversation
   static async getUnreadMessagesCount(conversation_id) {
     const query = `
-    SELECT COUNT(*) AS unread_count
-    FROM messages
-    WHERE conversation_id = ? AND sender_type != 'admin' AND seen = 0
-  `;
-
+      SELECT COUNT(*) AS unread_count
+      FROM messages
+      WHERE conversation_id = ? AND sender_type != 'admin' AND seen = 0
+    `;
     try {
       const [rows] = await db.query(query, [conversation_id]);
       return rows[0].unread_count;
@@ -99,14 +102,12 @@ class Message {
     }
   }
 
-  // Get total unread conversations for a user
   static async getUnreadConversationsCount() {
     const query = `
-    SELECT COUNT(DISTINCT conversation_id) AS unread_conversations
-    FROM messages
-    WHERE seen = 0 AND sender_type != 'admin'
-  `;
-
+      SELECT COUNT(DISTINCT conversation_id) AS unread_conversations
+      FROM messages
+      WHERE seen = 0 AND sender_type != 'admin'
+    `;
     try {
       const [rows] = await db.query(query);
       return rows[0].unread_conversations;

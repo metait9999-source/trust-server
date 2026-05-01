@@ -1,25 +1,22 @@
-// message.controller.js file
 const Message = require("../models/message.model");
 const Conversation = require("../models/conversation.model");
 const ChatFaq = require("../models/chatFaq.model");
 const { v4: uuidv4 } = require("uuid");
 const { getReceiverSocketId, io } = require("../socket/socket");
 
-// Send a new message
+// ── Send message ───────────────────────────────────────────
 exports.sendMessage = async (req, res) => {
-  const { userId, recipientId, messageText, senderType, faq_id } = req.body; // ✅ faq_id added
+  const { userId, recipientId, messageText, senderType, faq_id } = req.body;
   const messageImage = req.file ? req.file.path : null;
 
   try {
     let anonymousSenderId = null;
     let conversation_id = null;
 
-    // Check if the sender is anonymous
     if (!userId && senderType !== "admin") {
       anonymousSenderId = uuidv4();
     }
 
-    // Determine if a conversation already exists
     if (senderType === "user" || senderType === "admin") {
       if (senderType === "user") {
         conversation_id = await Conversation.findConversationByUserIds(
@@ -39,7 +36,6 @@ exports.sendMessage = async (req, res) => {
       );
     }
 
-    // If no conversation exists, create a new one
     if (!conversation_id) {
       if (senderType === "user" || senderType === "admin") {
         if (senderType === "user") {
@@ -58,7 +54,6 @@ exports.sendMessage = async (req, res) => {
       }
     }
 
-    // Insert the user's/admin's message into the database
     const newMessage = await Message.createMessage({
       conversation_id,
       sender_id: userId || null,
@@ -69,13 +64,13 @@ exports.sendMessage = async (req, res) => {
       sender_type: senderType || "user",
     });
 
-    // Emit the new message to the recipient
+    // ── Emit new message to recipient ──────────────────────
     const receiverSocketId = getReceiverSocketId(recipientId);
     if (receiverSocketId) {
       io.to(receiverSocketId).emit("newMessage", newMessage);
     }
 
-    // Emit unread message count
+    // ── Emit unread count ──────────────────────────────────
     const unreadConversationsCount =
       await Message.getUnreadConversationsCount();
     if (receiverSocketId) {
@@ -84,7 +79,7 @@ exports.sendMessage = async (req, res) => {
       });
     }
 
-    // ── Auto-reply on first message from user ─────────────────
+    // ── Auto-reply on first message from user ──────────────
     const previousMessages = await Message.getMessagesByConversationId(
       newMessage.conversation_id,
     );
@@ -115,22 +110,18 @@ exports.sendMessage = async (req, res) => {
         faq_options: rootFaqs.length > 0 ? rootFaqs : null,
       };
 
-      // Emit to user
       const userSocketId = getReceiverSocketId(
         newMessage.sender_id || recipientId,
       );
-      if (userSocketId) {
+      if (userSocketId)
         io.to(userSocketId).emit("newMessage", parsedDefaultReply);
-      }
 
-      // Emit to admin
       const adminSocketId = getReceiverSocketId(0);
-      if (adminSocketId) {
+      if (adminSocketId)
         io.to(adminSocketId).emit("newMessage", parsedDefaultReply);
-      }
     }
 
-    // ── Auto-reply when user selects any FAQ ──────────────────
+    // ── FAQ auto-reply ─────────────────────────────────────
     if (senderType === "user" && faq_id) {
       const faq = await ChatFaq.getFaqWithChildren(faq_id);
 
@@ -159,17 +150,13 @@ exports.sendMessage = async (req, res) => {
           faq_options: faq.children?.length > 0 ? faq.children : null,
         };
 
-        // Emit to user
         const userSocketId = getReceiverSocketId(newMessage.sender_id);
-        if (userSocketId) {
+        if (userSocketId)
           io.to(userSocketId).emit("newMessage", parsedFaqReply);
-        }
 
-        // Emit to admin
         const adminSocketId = getReceiverSocketId(0);
-        if (adminSocketId) {
+        if (adminSocketId)
           io.to(adminSocketId).emit("newMessage", parsedFaqReply);
-        }
       }
     }
 
@@ -179,7 +166,7 @@ exports.sendMessage = async (req, res) => {
   }
 };
 
-// Get all messages in a conversation
+// ── Get messages ───────────────────────────────────────────
 exports.getMessages = async (req, res) => {
   const { conversation_id, user_id } = req.params;
 
@@ -189,20 +176,43 @@ exports.getMessages = async (req, res) => {
       user_id,
     );
 
-    // Mark messages as seen
+    // ── Mark as seen + capture timestamp ──────────────────
     await Message.markMessagesAsSeen(conversation_id, user_id);
+    const seenAt = new Date().toISOString();
 
+    // ── Emit messagesSeen with timestamp to original sender ─
+    // user_id === "0" means admin is reading → notify the user
+    // otherwise user is reading → notify the admin (id=0)
+    const otherPartyMessage = messages.find(
+      (m) => String(m.sender_id) !== String(user_id) && m.sender_id !== null,
+    );
+
+    if (otherPartyMessage) {
+      const otherPartyId =
+        user_id === "0"
+          ? otherPartyMessage.sender_id // admin reading → tell user
+          : 0; // user reading → tell admin
+
+      const otherSocketId = getReceiverSocketId(otherPartyId);
+      if (otherSocketId) {
+        io.to(otherSocketId).emit("messagesSeen", {
+          conversation_id: Number(conversation_id),
+          seen_at: seenAt,
+        });
+      }
+    }
+
+    // ── Update unread count for admin ──────────────────────
     const receiverSocketId = getReceiverSocketId(0);
     const unreadConversationsCount =
       await Message.getUnreadConversationsCount();
-
     if (receiverSocketId) {
       io.to(receiverSocketId).emit("getUnreadMessage", {
         unreadConversationsCount,
       });
     }
 
-    // Parse faq_options JSON string back to array for each message
+    // ── Parse faq_options ──────────────────────────────────
     const parsedMessages = messages.map((msg) => ({
       ...msg,
       faq_options: msg.faq_options
@@ -218,7 +228,7 @@ exports.getMessages = async (req, res) => {
   }
 };
 
-// Get all conversations with the last message
+// ── Get all conversations ──────────────────────────────────
 exports.getAllConversations = async (req, res) => {
   try {
     const conversations = await Conversation.getAll();
