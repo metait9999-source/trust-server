@@ -94,8 +94,7 @@ async function getActiveDue() {
      FROM mining_subscriptions s
      JOIN mining_packages p ON s.package_id = p.id
      WHERE s.status = 'active'
-       AND (s.last_paid_at IS NULL OR DATE(s.last_paid_at) < CURDATE())
-       AND s.end_date > NOW()`,
+       AND (s.last_paid_at IS NULL OR DATE(s.last_paid_at) < CURDATE())`,
   );
   return rows;
 }
