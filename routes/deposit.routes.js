@@ -10,8 +10,8 @@ router.get("/unseen-count", depositController.getUnseenCount);
 router.get("/:id", depositController.getDepositById);
 router.post(
   "/",
-  checkFrozen,
   uploadMiddleware,
+  checkFrozen,
   depositController.createDeposit,
 );
 router.put("/mark-seen", depositController.markAllSeen);
