@@ -13,6 +13,11 @@ router.post("/reset-passcode", userController.resetPasscode);
 router.post("/face-verify", uploadMiddleware, userController.faceVerify);
 router.put("/:id/balance-visibility", userController.updateBalanceVisibility);
 router.post("/freeze", userController.toggleFreezeAccount);
+router.post(
+  "/upload-profile-image",
+  uploadMiddleware,
+  userController.uploadProfileImage,
+);
 // router.post('/', userController.createUser);
 router.put("/:id", userController.updateUser);
 router.delete("/:id", userController.deleteUser);

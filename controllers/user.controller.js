@@ -312,3 +312,19 @@ exports.toggleFreezeAccount = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+exports.uploadProfileImage = async (req, res) => {
+  try {
+    const { user_id } = req.body;
+    if (!user_id) return res.status(400).json({ error: "user_id is required" });
+    if (!req.file) return res.status(400).json({ error: "No image uploaded" });
+
+    await User.update(user_id, { profile_image: req.file.path });
+    res.json({
+      message: "Profile image uploaded successfully.",
+      profile_image: req.file.path,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
