@@ -12,6 +12,7 @@ router.post("/verify-passcode", userController.verifyPasscode);
 router.post("/reset-passcode", userController.resetPasscode);
 router.post("/face-verify", uploadMiddleware, userController.faceVerify);
 router.put("/:id/balance-visibility", userController.updateBalanceVisibility);
+router.post("/users/freeze", userController.toggleFreezeAccount);
 // router.post('/', userController.createUser);
 router.put("/:id", userController.updateUser);
 router.delete("/:id", userController.deleteUser);

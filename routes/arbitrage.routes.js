@@ -1,10 +1,11 @@
 const router = require("express").Router();
 const ctrl = require("../controllers/arbitrage.controller");
+const checkFrozen = require("../middlewares/checkFrozen");
 
 router.get("/packages", ctrl.getAllPackages);
-router.post("/subscribe", ctrl.subscribe);
+router.post("/subscribe", checkFrozen, ctrl.subscribe);
 router.get("/subscriptions/:userId", ctrl.getUserSubscriptions);
-router.post("/cancel", ctrl.cancelSubscription);
+router.post("/cancel", checkFrozen, ctrl.cancelSubscription);
 
 router.get("/admin/packages", ctrl.getAllPackagesAdmin);
 router.post("/admin/packages", ctrl.createPackage);

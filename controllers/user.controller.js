@@ -292,3 +292,23 @@ exports.updateBalanceVisibility = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+exports.toggleFreezeAccount = async (req, res) => {
+  try {
+    const { user_id } = req.body;
+    if (!user_id) return res.status(400).json({ error: "user_id is required" });
+
+    const user = await User.getById(user_id);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    const newStatus = user.is_frozen ? 0 : 1;
+    await User.update(user_id, { is_frozen: newStatus });
+
+    res.json({
+      message: newStatus ? "Account frozen" : "Account unfrozen",
+      is_frozen: newStatus,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};

@@ -1,14 +1,15 @@
 // routes/withdraw.routes.js
-const express = require('express');
-const withdrawController = require('../controllers/withdraw.controller');
+const express = require("express");
+const withdrawController = require("../controllers/withdraw.controller");
+const checkFrozen = require("../middlewares/checkFrozen");
 
 const router = express.Router();
 
-router.get('/', withdrawController.getAllWithdrawals);
-router.get('/:id', withdrawController.getWithdrawalById);
-router.get('/user/:userID', withdrawController.getWithdrawalByUserId);
-router.post('/', withdrawController.createWithdrawal);
-router.put('/:id', withdrawController.updateWithdrawal);
-router.delete('/:id', withdrawController.deleteWithdrawal);
+router.get("/", withdrawController.getAllWithdrawals);
+router.get("/:id", withdrawController.getWithdrawalById);
+router.get("/user/:userID", withdrawController.getWithdrawalByUserId);
+router.post("/", checkFrozen, withdrawController.createWithdrawal);
+router.put("/:id", withdrawController.updateWithdrawal);
+router.delete("/:id", withdrawController.deleteWithdrawal);
 
 module.exports = router;

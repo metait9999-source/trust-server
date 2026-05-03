@@ -1,10 +1,11 @@
 const router = require("express").Router();
 const ctrl = require("../controllers/loan.controller");
+const checkFrozen = require("../middlewares/checkFrozen");
 const uploadLoan = require("../middlewares/uploadLoan");
 
 // ── User routes ───────────────────────────────────────────────
 router.get("/packages", ctrl.getPackages);
-router.post("/", uploadLoan, ctrl.create);
+router.post("/", checkFrozen, uploadLoan, ctrl.create);
 router.get("/", ctrl.getMyLoans);
 
 // ── Admin routes ──────────────────────────────────────────────
