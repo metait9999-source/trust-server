@@ -1,4 +1,6 @@
 const db = require("../config/db.config");
+const fs = require("fs");
+const path = require("path");
 
 class Deposit {
   static async getAll() {
@@ -37,11 +39,29 @@ class Deposit {
     try {
       await connection.beginTransaction();
 
+      // ── If documents is explicitly set to null, delete the file from disk ──
+      if ("documents" in depositData && depositData.documents === null) {
+        const [existing] = await connection.query(
+          "SELECT documents FROM meta_ct_deposits WHERE id = ?",
+          [id],
+        );
+        const existingPath = existing[0]?.documents;
+        if (existingPath) {
+          const fullPath = path.resolve(existingPath);
+          fs.unlink(fullPath, (err) => {
+            if (err)
+              console.error("Failed to delete deposit image:", err.message);
+          });
+        }
+      }
+
+      // ── Run the update ──
       const [result] = await connection.query(
         "UPDATE meta_ct_deposits SET ? WHERE id = ?",
         [depositData, id],
       );
 
+      // ── If approved, credit wallet balance and set trade limit ──
       if (result.affectedRows > 0 && depositData.status === "approved") {
         const [updatedDeposit] = await connection.query(
           "SELECT user_id, coin_id, amount FROM meta_ct_deposits WHERE id = ?",
@@ -75,11 +95,39 @@ class Deposit {
   }
 
   static async delete(id) {
-    const [result] = await db.query(
-      "DELETE FROM meta_ct_deposits WHERE id = ?",
-      [id],
-    );
-    return result.affectedRows;
+    const connection = await db.getConnection();
+    try {
+      await connection.beginTransaction();
+
+      const [existing] = await connection.query(
+        "SELECT documents FROM meta_ct_deposits WHERE id = ?",
+        [id],
+      );
+      const existingPath = existing[0]?.documents;
+      if (existingPath) {
+        const fullPath = path.resolve(existingPath);
+        fs.unlink(fullPath, (err) => {
+          if (err)
+            console.error(
+              "Failed to delete deposit image on record delete:",
+              err.message,
+            );
+        });
+      }
+
+      const [result] = await connection.query(
+        "DELETE FROM meta_ct_deposits WHERE id = ?",
+        [id],
+      );
+
+      await connection.commit();
+      return result.affectedRows;
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   }
 
   static async getLatestDepositByUserIdAndCoinId(userId, coinId) {
@@ -113,7 +161,6 @@ class Deposit {
     }
   }
 
-  // NEW
   static async getUnseenCount() {
     const [rows] = await db.query(
       "SELECT COUNT(*) AS count FROM meta_ct_deposits WHERE is_seen = 0",
@@ -121,7 +168,6 @@ class Deposit {
     return rows[0].count;
   }
 
-  // NEW
   static async markAllSeen() {
     await db.query("UPDATE meta_ct_deposits SET is_seen = 1 WHERE is_seen = 0");
   }
