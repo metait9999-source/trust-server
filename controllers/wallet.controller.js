@@ -1,5 +1,5 @@
 // controllers/wallet.controller.js
-const walletModel = require('../models/wallet.model');
+const walletModel = require("../models/wallet.model");
 
 // Get all wallets
 exports.getAllWallets = async (req, res) => {
@@ -30,26 +30,28 @@ exports.getWalletById = async (req, res) => {
     if (wallet) {
       res.status(200).json(wallet);
     } else {
-      res.status(404).json({ message: 'Wallet not found' });
+      res.status(404).json({ message: "Wallet not found" });
     }
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// Create a new wallet
+// Create
 exports.createWallet = async (req, res) => {
   const walletData = req.body;
+  const { coin_logo, wallet_qr } = req.walletFiles;
+
   const walletDataWithImg = {
-  coin_id: walletData.coin_id,
-  coin_name: walletData.coin_name,
-  coin_logo: walletData.coin_logo,
-  wallet_network: walletData.wallet_network,
-  coin_symbol: walletData.coin_symbol,
-  wallet_address: walletData.wallet_address,
-  wallet_qr: req.file ? req.file.path : null,
-    
+    coin_id: walletData.coin_id,
+    coin_name: walletData.coin_name,
+    coin_logo: coin_logo,
+    wallet_network: walletData.wallet_network,
+    coin_symbol: walletData.coin_symbol,
+    wallet_address: walletData.wallet_address,
+    wallet_qr: wallet_qr,
   };
+
   try {
     const newWalletId = await walletModel.createWallet(walletDataWithImg);
     res.status(201).json({ id: newWalletId, ...walletDataWithImg });
@@ -58,27 +60,29 @@ exports.createWallet = async (req, res) => {
   }
 };
 
-// Update a wallet by ID
+// Update
 exports.updateWallet = async (req, res) => {
   const { id } = req.params;
   const walletData = req.body;
+  const { coin_logo, wallet_qr } = req.walletFiles;
+
   const walletDataWithImg = {
     coin_id: walletData.coin_id,
     coin_name: walletData.coin_name,
-    coin_logo: walletData.coin_logo,
+    coin_logo: coin_logo ?? walletData.coin_logo,
     wallet_network: walletData.wallet_network,
     coin_symbol: walletData.coin_symbol,
     wallet_address: walletData.wallet_address,
-    wallet_qr: req.file ? req.file.path : walletData.wallet_qr,
-    status:walletData.status,
-      
-    };
+    wallet_qr: wallet_qr ?? walletData.wallet_qr,
+    status: walletData.status,
+  };
+
   try {
     const affectedRows = await walletModel.updateWallet(id, walletDataWithImg);
     if (affectedRows > 0) {
-      res.status(200).json({ id, ...walletData });
+      res.status(200).json({ id, ...walletDataWithImg });
     } else {
-      res.status(404).json({ message: 'Wallet not found' });
+      res.status(404).json({ message: "Wallet not found" });
     }
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -91,9 +95,9 @@ exports.deleteWallet = async (req, res) => {
   try {
     const affectedRows = await walletModel.deleteWallet(id);
     if (affectedRows > 0) {
-      res.status(200).json({ message: 'Wallet deleted successfully' });
+      res.status(200).json({ message: "Wallet deleted successfully" });
     } else {
-      res.status(404).json({ message: 'Wallet not found' });
+      res.status(404).json({ message: "Wallet not found" });
     }
   } catch (error) {
     res.status(500).json({ message: error.message });
