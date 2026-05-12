@@ -1,12 +1,12 @@
 // models/withdraw.model.js
-const db = require('../config/db.config');
+const db = require("../config/db.config");
 
 class Withdraw {
   // Get all withdrawals
   static async getAll() {
     try {
       const query = `
-        SELECT d.*, u.uuid AS user_uuid, w.coin_name
+        SELECT d.*, u.uuid AS user_uuid, u.employee, w.coin_name
         FROM meta_ct_withdraws AS d
         JOIN meta_ct_user AS u ON d.user_id = u.id
         JOIN meta_ct_wallets AS w ON d.coin_id = w.coin_id
@@ -18,11 +18,12 @@ class Withdraw {
     }
   }
 
-  
-
   // Get a withdrawal by ID
   static async getById(id) {
-    const [rows] = await db.query('SELECT * FROM meta_ct_withdraws WHERE id = ?', [id]);
+    const [rows] = await db.query(
+      "SELECT * FROM meta_ct_withdraws WHERE id = ?",
+      [id],
+    );
     return rows[0];
   }
 
@@ -44,22 +45,30 @@ class Withdraw {
     }
   }
 
-
   // Create a new withdrawal
   static async create(withdrawData) {
-    const [result] = await db.query('INSERT INTO meta_ct_withdraws SET ?', withdrawData);
+    const [result] = await db.query(
+      "INSERT INTO meta_ct_withdraws SET ?",
+      withdrawData,
+    );
     return result.insertId;
   }
 
   // Update a withdrawal by ID
   static async update(id, withdrawData) {
-    const [result] = await db.query('UPDATE meta_ct_withdraws SET ? WHERE id = ?', [withdrawData, id]);
+    const [result] = await db.query(
+      "UPDATE meta_ct_withdraws SET ? WHERE id = ?",
+      [withdrawData, id],
+    );
     return result.affectedRows;
   }
 
   // Delete a withdrawal by ID
   static async delete(id) {
-    const [result] = await db.query('DELETE FROM meta_ct_withdraws WHERE id = ?', [id]);
+    const [result] = await db.query(
+      "DELETE FROM meta_ct_withdraws WHERE id = ?",
+      [id],
+    );
     return result.affectedRows;
   }
 }
