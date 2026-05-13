@@ -5,6 +5,8 @@ const checkFrozen = require("../middlewares/checkFrozen");
 
 const router = express.Router();
 
+router.get("/unseen-count", withdrawController.getUnseenCount);
+router.put("/mark-seen", withdrawController.markAllSeen);
 router.get("/", withdrawController.getAllWithdrawals);
 router.get("/:id", withdrawController.getWithdrawalById);
 router.get("/user/:userID", withdrawController.getWithdrawalByUserId);

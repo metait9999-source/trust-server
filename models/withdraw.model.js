@@ -1,8 +1,6 @@
-// models/withdraw.model.js
 const db = require("../config/db.config");
 
 class Withdraw {
-  // Get all withdrawals
   static async getAll() {
     try {
       const query = `
@@ -18,7 +16,6 @@ class Withdraw {
     }
   }
 
-  // Get a withdrawal by ID
   static async getById(id) {
     const [rows] = await db.query(
       "SELECT * FROM meta_ct_withdraws WHERE id = ?",
@@ -27,7 +24,6 @@ class Withdraw {
     return rows[0];
   }
 
-  // Get a withdrawal by userID
   static async getByUserId(id) {
     const query = `
       SELECT w.*, mw.coin_name, mw.coin_symbol
@@ -36,7 +32,6 @@ class Withdraw {
       WHERE w.user_id = ?
       ORDER BY w.created_at DESC
     `;
-
     try {
       const [rows] = await db.query(query, [id]);
       return rows;
@@ -45,7 +40,6 @@ class Withdraw {
     }
   }
 
-  // Create a new withdrawal
   static async create(withdrawData) {
     const [result] = await db.query(
       "INSERT INTO meta_ct_withdraws SET ?",
@@ -54,7 +48,6 @@ class Withdraw {
     return result.insertId;
   }
 
-  // Update a withdrawal by ID
   static async update(id, withdrawData) {
     const [result] = await db.query(
       "UPDATE meta_ct_withdraws SET ? WHERE id = ?",
@@ -63,13 +56,27 @@ class Withdraw {
     return result.affectedRows;
   }
 
-  // Delete a withdrawal by ID
   static async delete(id) {
     const [result] = await db.query(
       "DELETE FROM meta_ct_withdraws WHERE id = ?",
       [id],
     );
     return result.affectedRows;
+  }
+
+  // NEW
+  static async getUnseenCount() {
+    const [rows] = await db.query(
+      "SELECT COUNT(*) AS count FROM meta_ct_withdraws WHERE is_seen = 0",
+    );
+    return rows[0].count;
+  }
+
+  // NEW
+  static async markAllSeen() {
+    await db.query(
+      "UPDATE meta_ct_withdraws SET is_seen = 1 WHERE is_seen = 0",
+    );
   }
 }
 
